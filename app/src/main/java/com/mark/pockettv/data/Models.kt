@@ -88,7 +88,7 @@ data class Playlist(
     val username: String = "",
     val password: String = "",
     val m3uUrl: String = "",
-    val filePath: String = ""
+    val filePath: String? = null
 )
 
 data class Favorite(

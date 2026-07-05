@@ -16,7 +16,11 @@ class Prefs(context: Context) {
             val json = sp.getString("playlists", null) ?: return emptyList()
             val type = object : TypeToken<List<Playlist>>() {}.type
             return try {
-                gson.fromJson(json, type) ?: emptyList()
+                val list: List<Playlist> = gson.fromJson(json, type) ?: emptyList()
+                list.filter { p ->
+                    @Suppress("USELESS_CAST", "SENSELESS_COMPARISON")
+                    (p.id as String?) != null && (p.name as String?) != null && (p.type as String?) != null
+                }
             } catch (e: Exception) {
                 emptyList()
             }
@@ -36,7 +40,13 @@ class Prefs(context: Context) {
             val json = sp.getString("favorites", null) ?: return emptyList()
             val type = object : TypeToken<List<Favorite>>() {}.type
             return try {
-                gson.fromJson(json, type) ?: emptyList()
+                val list: List<Favorite> = gson.fromJson(json, type) ?: emptyList()
+                list.filter { f ->
+                    @Suppress("USELESS_CAST", "SENSELESS_COMPARISON")
+                    (f.key as String?) != null && (f.title as String?) != null &&
+                        (f.type as String?) != null && (f.refId as String?) != null &&
+                        (f.url as String?) != null
+                }
             } catch (e: Exception) {
                 emptyList()
             }

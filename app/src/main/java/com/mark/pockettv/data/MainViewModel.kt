@@ -165,8 +165,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deletePlaylist(playlist: Playlist) {
-        if (playlist.filePath.isNotBlank()) {
-            runCatching { File(playlist.filePath).delete() }
+        val storedFile = playlist.filePath
+        if (!storedFile.isNullOrBlank()) {
+            runCatching { File(storedFile).delete() }
         }
         val updated = prefs.playlists.filterNot { it.id == playlist.id }
         prefs.playlists = updated
@@ -212,8 +213,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     series = runCatching { a.seriesList(u, p) }.getOrDefault(emptyList())
                     m3uChannels = emptyList()
                 } else {
-                    val text = if (playlist.filePath.isNotBlank()) {
-                        withContext(Dispatchers.IO) { File(playlist.filePath).readText() }
+                    val path = playlist.filePath
+                    val text = if (!path.isNullOrBlank()) {
+                        withContext(Dispatchers.IO) { File(path).readText() }
                     } else {
                         ApiFactory.fetchText(playlist.m3uUrl)
                     }
