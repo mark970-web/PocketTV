@@ -595,6 +595,7 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         TextButton(onClick = { vm.selectPlaylist(p); onDismiss() }) {
+<<<<<<< HEAD
                             Text(
                                 if (p.id == vm.active?.id) "● ${p.name}" else p.name,
                                 color = if (p.id == vm.active?.id) Gold else OnSurfaceEmber,
@@ -602,6 +603,9 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+=======
+                            Text(if (p.id == vm.active?.id) "● ${p.name}" else p.name)
+>>>>>>> 713b0f3aa3a9af13e25af67e32e712313055c126
                         }
                         Spacer(Modifier.weight(1f))
                         TextButton(onClick = {
