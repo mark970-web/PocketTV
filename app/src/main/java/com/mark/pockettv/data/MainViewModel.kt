@@ -81,7 +81,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     password = pass.trim()
                 )
                 savePlaylist(playlist)
-                setActive(playlist)
+                selectPlaylist(playlist)
                 onResult(true)
             } catch (e: Exception) {
                 error = "Login failed: ${e.message ?: "unknown error"}"
@@ -108,7 +108,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     m3uUrl = url.trim()
                 )
                 savePlaylist(playlist)
-                setActive(playlist)
+                selectPlaylist(playlist)
                 onResult(true)
             } catch (e: Exception) {
                 error = "Could not load playlist: ${e.message ?: "unknown error"}"
@@ -131,11 +131,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         playlists = updated
         if (active?.id == playlist.id) {
             val next = updated.firstOrNull()
-            if (next != null) setActive(next) else clearActive()
+            if (next != null) selectPlaylist(next) else clearActive()
         }
     }
 
-    fun setActive(playlist: Playlist) {
+    fun selectPlaylist(playlist: Playlist) {
         prefs.activePlaylistId = playlist.id
         active = playlist
         loadContent(playlist)
