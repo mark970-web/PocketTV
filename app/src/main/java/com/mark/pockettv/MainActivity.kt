@@ -30,7 +30,10 @@ import com.mark.pockettv.data.MainViewModel
 import com.mark.pockettv.ui.HomeScreen
 import com.mark.pockettv.ui.LoginScreen
 import com.mark.pockettv.ui.Charcoal
-import com.mark.pockettv.ui.PocketTypography
+import com.mark.pockettv.ui.Lexend
+import com.mark.pockettv.ui.pocketTypography
+import androidx.core.content.res.ResourcesCompat
+import androidx.compose.ui.text.font.Font
 import com.mark.pockettv.ui.PlayerScreen
 import com.mark.pockettv.ui.PocketColors
 import com.mark.pockettv.ui.SeriesScreen
@@ -53,8 +56,15 @@ class MainActivity : ComponentActivity() {
             android.os.Process.killProcess(android.os.Process.myPid())
         }
 
+        // Load the bundled Lexend font ONLY if it actually works on this device.
+        Lexend = runCatching {
+            if (ResourcesCompat.getFont(this, R.font.lexend) != null)
+                FontFamily(Font(R.font.lexend))
+            else null
+        }.getOrNull() ?: FontFamily.Default
+
         setContent {
-            MaterialTheme(colorScheme = PocketColors, typography = PocketTypography) {
+            MaterialTheme(colorScheme = PocketColors, typography = pocketTypography()) {
                 Surface(modifier = Modifier.fillMaxSize(), color = Charcoal) {
                     var crashText by remember { mutableStateOf(previousCrash) }
                     if (crashText != null) {

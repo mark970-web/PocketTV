@@ -43,7 +43,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -52,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.mark.pockettv.R
 
 // =====================================================================
 // Cinematic Ember design system — colors
@@ -110,15 +108,16 @@ val PocketColors = darkColorScheme(
 // Typography — Lexend with tight tracking
 // =====================================================================
 
-val Lexend = FontFamily(
-    Font(R.font.lexend, FontWeight.Normal),
-    Font(R.font.lexend, FontWeight.Medium),
-    Font(R.font.lexend, FontWeight.SemiBold),
-    Font(R.font.lexend, FontWeight.Bold)
-)
+/**
+ * App font. MainActivity replaces this with the bundled Lexend at startup,
+ * but ONLY after verifying the font file actually loads on this device.
+ * If loading fails for any reason, the system font is used and the app
+ * still opens instead of crashing on the first frame.
+ */
+var Lexend: FontFamily = FontFamily.Default
 
 private val base = Typography()
-val PocketTypography = Typography(
+fun pocketTypography(): Typography = Typography(
     displayLarge = base.displayLarge.copy(fontFamily = Lexend, letterSpacing = (-0.04).em),
     displayMedium = base.displayMedium.copy(fontFamily = Lexend, letterSpacing = (-0.04).em),
     displaySmall = base.displaySmall.copy(fontFamily = Lexend, letterSpacing = (-0.03).em),
