@@ -153,7 +153,7 @@ fun LoginScreen(vm: MainViewModel, onLoggedIn: () -> Unit) {
             ) {
                 vm.playlists.forEach { p ->
                     TextButton(onClick = {
-                        vm.setActive(p)
+                        vm.selectPlaylist(p)
                         onLoggedIn()
                     }) {
                         Text("${p.name}  •  ${p.type.uppercase()}")
