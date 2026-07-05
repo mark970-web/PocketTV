@@ -540,7 +540,7 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        TextButton(onClick = { vm.setActive(p); onDismiss() }) {
+                        TextButton(onClick = { vm.selectPlaylist(p); onDismiss() }) {
                             Text(if (p.id == vm.active?.id) "● ${p.name}" else p.name)
                         }
                         Spacer(Modifier.weight(1f))
