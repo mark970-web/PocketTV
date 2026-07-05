@@ -17,7 +17,8 @@ import androidx.navigation.navArgument
 import com.mark.pockettv.data.MainViewModel
 import com.mark.pockettv.ui.HomeScreen
 import com.mark.pockettv.ui.LoginScreen
-import com.mark.pockettv.ui.Night
+import com.mark.pockettv.ui.Charcoal
+import com.mark.pockettv.ui.PocketTypography
 import com.mark.pockettv.ui.PlayerScreen
 import com.mark.pockettv.ui.PocketColors
 import com.mark.pockettv.ui.SeriesScreen
@@ -27,8 +28,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme(colorScheme = PocketColors) {
-                Surface(modifier = Modifier.fillMaxSize(), color = Night) {
+            MaterialTheme(colorScheme = PocketColors, typography = PocketTypography) {
+                Surface(modifier = Modifier.fillMaxSize(), color = Charcoal) {
                     val navController = rememberNavController()
                     val vm: MainViewModel = viewModel()
 

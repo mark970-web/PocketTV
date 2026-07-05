@@ -35,5 +35,3 @@ Supports Xtream Codes API and M3U playlist URLs.
 - Continue watching (store playback position)
 - Picture-in-Picture
 - Parental lock / hide categories
-"# PocketTV" 
-"# PocketTV" 

@@ -63,7 +63,7 @@ fun SeriesScreen(
     }
 
     Scaffold(
-        containerColor = Night,
+        containerColor = Charcoal,
         topBar = {
             TopAppBar(
                 title = {
@@ -75,12 +75,12 @@ fun SeriesScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = TextPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = OnSurfaceEmber)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Night,
-                    titleContentColor = TextPrimary
+                    containerColor = Charcoal,
+                    titleContentColor = OnSurfaceEmber
                 )
             )
         }
@@ -89,7 +89,7 @@ fun SeriesScreen(
             Box(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
+            ) { CircularProgressIndicator(color = EmberContainer) }
             return@Scaffold
         }
 
@@ -108,12 +108,12 @@ fun SeriesScreen(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(width = 110.dp, height = 165.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(20.dp))
                     )
                     Column(Modifier.padding(start = 14.dp)) {
                         Text(
                             info?.info?.name ?: seriesName,
-                            color = TextPrimary,
+                            color = OnSurfaceEmber, fontFamily = Lexend, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                             fontSize = 18.sp,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -122,7 +122,7 @@ fun SeriesScreen(
                         if (!plot.isNullOrBlank()) {
                             Text(
                                 plot,
-                                color = TextSecondary,
+                                color = OnSurfaceVariantEmber, fontFamily = Lexend,
                                 fontSize = 12.sp,
                                 maxLines = 7,
                                 overflow = TextOverflow.Ellipsis,
@@ -168,7 +168,7 @@ fun SeriesScreen(
                 item {
                     Text(
                         "No episodes returned by the provider.",
-                        color = TextSecondary,
+                        color = OnSurfaceVariantEmber, fontFamily = Lexend,
                         fontSize = 13.sp,
                         modifier = Modifier.padding(16.dp)
                     )

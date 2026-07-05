@@ -1,12 +1,16 @@
 package com.mark.pockettv.data
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -81,7 +85,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     password = pass.trim()
                 )
                 savePlaylist(playlist)
-                setActive(playlist)
+                selectPlaylist(playlist)
                 onResult(true)
             } catch (e: Exception) {
                 error = "Login failed: ${e.message ?: "unknown error"}"
@@ -108,10 +112,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     m3uUrl = url.trim()
                 )
                 savePlaylist(playlist)
-                setActive(playlist)
+                selectPlaylist(playlist)
                 onResult(true)
             } catch (e: Exception) {
                 error = "Could not load playlist: ${e.message ?: "unknown error"}"
+                onResult(false)
+            } finally {
+                loading = false
+            }
+        }
+    }
+
+    fun addM3uFilePlaylist(name: String, uri: Uri, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            loading = true
+            error = null
+            try {
+                val context = getApplication<Application>()
+                val text = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)
+                        ?.bufferedReader()?.use { it.readText() }
+                } ?: throw IllegalStateException("Could not read the selected file")
+                val parsed = M3uParser.parse(text)
+                if (parsed.isEmpty()) throw IllegalStateException("No channels found in file")
+
+                val id = UUID.randomUUID().toString()
+                val file = File(context.filesDir, "playlist_$id.m3u")
+                withContext(Dispatchers.IO) { file.writeText(text) }
+
+                val playlist = Playlist(
+                    id = id,
+                    name = name.ifBlank { "M3U File" },
+                    type = "m3u",
+                    filePath = file.absolutePath
+                )
+                savePlaylist(playlist)
+                selectPlaylist(playlist)
+                onResult(true)
+            } catch (e: Exception) {
+                error = "Could not load file: ${e.message ?: "unknown error"}"
                 onResult(false)
             } finally {
                 loading = false
@@ -126,16 +165,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deletePlaylist(playlist: Playlist) {
+        if (playlist.filePath.isNotBlank()) {
+            runCatching { File(playlist.filePath).delete() }
+        }
         val updated = prefs.playlists.filterNot { it.id == playlist.id }
         prefs.playlists = updated
         playlists = updated
         if (active?.id == playlist.id) {
             val next = updated.firstOrNull()
-            if (next != null) setActive(next) else clearActive()
+            if (next != null) selectPlaylist(next) else clearActive()
         }
     }
 
-    fun setActive(playlist: Playlist) {
+    fun selectPlaylist(playlist: Playlist) {
         prefs.activePlaylistId = playlist.id
         active = playlist
         loadContent(playlist)
@@ -170,7 +212,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     series = runCatching { a.seriesList(u, p) }.getOrDefault(emptyList())
                     m3uChannels = emptyList()
                 } else {
-                    val text = ApiFactory.fetchText(playlist.m3uUrl)
+                    val text = if (playlist.filePath.isNotBlank()) {
+                        withContext(Dispatchers.IO) { File(playlist.filePath).readText() }
+                    } else {
+                        ApiFactory.fetchText(playlist.m3uUrl)
+                    }
                     m3uChannels = M3uParser.parse(text)
                     liveCategories = emptyList(); liveStreams = emptyList()
                     vodCategories = emptyList(); vodStreams = emptyList()
