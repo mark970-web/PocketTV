@@ -39,17 +39,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mark.pockettv.data.Favorite
+import com.mark.pockettv.data.M3uChannel
 import com.mark.pockettv.data.MainViewModel
+import com.mark.pockettv.data.SeriesGrouper
+
+private const val BOTTOM_PAD = 130 // clearance for floating nav + gesture bar
 
 @Composable
 fun HomeScreen(
     vm: MainViewModel,
     onPlay: (url: String, title: String) -> Unit,
     onOpenSeries: (seriesId: String, name: String, cover: String) -> Unit,
+    onOpenM3uSeries: (name: String) -> Unit,
     onLogout: () -> Unit
 ) {
     var tab by remember { mutableIntStateOf(0) }
@@ -62,7 +68,7 @@ fun HomeScreen(
     Box(Modifier.fillMaxSize().background(Charcoal)) {
         Column(Modifier.fillMaxSize()) {
 
-            // ---- Glass top bar: avatar circle · centered title · search circle ----
+            // ---- Top bar ----
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -88,7 +94,7 @@ fun HomeScreen(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
                     letterSpacing = (-0.6).sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
                 CircleGlassButton(onClick = {
@@ -128,15 +134,14 @@ fun HomeScreen(
                 }
             } else {
                 when (tab) {
-                    0 -> HomeTab(vm, onPlay, onOpenSeries)
+                    0 -> HomeTab(vm, onPlay, onOpenSeries, onOpenM3uSeries)
                     1 -> LiveTab(vm, query, isXtream, onPlay)
                     2 -> MoviesTab(vm, query, isXtream, onPlay)
-                    3 -> SeriesTab(vm, query, isXtream, onPlay, onOpenSeries)
+                    3 -> SeriesTab(vm, query, isXtream, onOpenSeries, onOpenM3uSeries)
                 }
             }
         }
 
-        // ---- Floating pill navigation ----
         FloatingBottomNav(
             selected = tab,
             onSelect = { tab = it },
@@ -149,19 +154,30 @@ fun HomeScreen(
     }
 }
 
-// ---------- Home tab: hero + favorites + rows ----------
+// ============================================================
+// Home tab: hero + favorites + curated rows
+// ============================================================
 
 @Composable
 private fun HomeTab(
     vm: MainViewModel,
     onPlay: (String, String) -> Unit,
-    onOpenSeries: (String, String, String) -> Unit
+    onOpenSeries: (String, String, String) -> Unit,
+    onOpenM3uSeries: (String) -> Unit
 ) {
     val isXtream = vm.active?.type == "xtream"
 
-    LazyColumn(contentPadding = PaddingValues(bottom = 110.dp)) {
+    val m3uMovies = remember(vm.m3uChannels) { vm.m3uChannels.filter { it.kind == "movie" } }
+    val m3uLive = remember(vm.m3uChannels) { vm.m3uChannels.filter { it.kind == "live" } }
+    val m3uSeries = remember(vm.m3uChannels) {
+        vm.m3uChannels.filter { it.kind == "series" }
+            .groupBy { SeriesGrouper.seriesKey(it.name) }
+            .map { (key, eps) -> Triple(key, eps.first().logo, eps.size) }
+    }
 
-        // Hero: first movie (Xtream) or first channel (M3U)
+    LazyColumn(contentPadding = PaddingValues(bottom = BOTTOM_PAD.dp)) {
+
+        // ---- Hero ----
         item {
             if (isXtream) {
                 val featured = vm.vodStreams.firstOrNull()
@@ -184,7 +200,8 @@ private fun HomeTab(
                     }
                 }
             } else {
-                val featured = vm.m3uChannels.firstOrNull { !it.logo.isNullOrBlank() }
+                val featured = m3uMovies.firstOrNull { !it.logo.isNullOrBlank() }
+                    ?: vm.m3uChannels.firstOrNull { !it.logo.isNullOrBlank() }
                     ?: vm.m3uChannels.firstOrNull()
                 if (featured != null) {
                     val key = "m3u:${featured.url}"
@@ -207,6 +224,7 @@ private fun HomeTab(
             }
         }
 
+        // ---- Favorites ----
         if (vm.favorites.isNotEmpty()) {
             item { SectionHeader("Your Favorites") }
             item {
@@ -222,6 +240,7 @@ private fun HomeTab(
                             onClick = {
                                 when (fav.type) {
                                     "series" -> onOpenSeries(fav.refId, fav.title, fav.image ?: "")
+                                    "m3useries" -> onOpenM3uSeries(fav.refId)
                                     else -> if (fav.url.isNotBlank()) onPlay(fav.url, fav.title)
                                 }
                             },
@@ -234,7 +253,7 @@ private fun HomeTab(
 
         if (isXtream) {
             if (vm.vodStreams.size > 1) {
-                item { SectionHeader("Trending Now") }
+                item { SectionHeader("Trending Movies") }
                 item {
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -305,10 +324,59 @@ private fun HomeTab(
                 }
             }
         } else {
-            val channels = vm.m3uChannels
-            if (channels.isNotEmpty()) {
-                item { SectionHeader("Channels") }
-                items(channels.take(40), key = { it.url }) { ch ->
+            // ---- M3U home: movies / series / live rows ----
+            if (m3uMovies.isNotEmpty()) {
+                item { SectionHeader("Movies") }
+                item {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp)
+                    ) {
+                        items(m3uMovies.take(25), key = { it.url }) { ch ->
+                            val key = "m3u:${ch.url}"
+                            PosterCard(
+                                title = ch.name,
+                                imageUrl = ch.logo,
+                                isFavorite = vm.isFavorite(key),
+                                onClick = { onPlay(ch.url, ch.name) },
+                                onLongClick = {
+                                    vm.toggleFavorite(
+                                        Favorite(key, ch.name, ch.logo, "m3u", ch.url, ch.url)
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            if (m3uSeries.isNotEmpty()) {
+                item { SectionHeader("Series") }
+                item {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(horizontal = 20.dp)
+                    ) {
+                        items(m3uSeries.take(25), key = { it.first }) { (name, logo, count) ->
+                            val key = "m3useries:$name"
+                            PosterCard(
+                                title = name,
+                                imageUrl = logo,
+                                isFavorite = vm.isFavorite(key),
+                                subtitle = "$count episodes",
+                                onClick = { onOpenM3uSeries(name) },
+                                onLongClick = {
+                                    vm.toggleFavorite(
+                                        Favorite(key, name, logo, "m3useries", name)
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            if (m3uLive.isNotEmpty()) {
+                item { SectionHeader("Live TV") }
+                items(m3uLive.take(15), key = { it.url }) { ch ->
                     val key = "m3u:${ch.url}"
                     Box(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
                         ChannelRow(
@@ -332,7 +400,9 @@ private fun HomeTab(
     }
 }
 
-// ---------- Live tab ----------
+// ============================================================
+// Live tab — category-first
+// ============================================================
 
 @Composable
 private fun LiveTab(
@@ -341,50 +411,83 @@ private fun LiveTab(
     isXtream: Boolean,
     onPlay: (String, String) -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf<Pair<String, String>?>(null) } // id to name
+    val searching = query.isNotBlank()
 
-    Column {
-        if (isXtream) {
-            CategoryChips(
-                categories = vm.liveCategories.mapNotNull { c ->
-                    val id = c.categoryId ?: return@mapNotNull null
-                    id to (c.categoryName ?: id)
-                },
-                selectedId = selectedCategory,
-                onSelect = { selectedCategory = it }
-            )
-            val filtered = vm.liveStreams.filter { ch ->
-                (selectedCategory == null || ch.categoryId == selectedCategory) &&
-                    (query.isBlank() || (ch.name ?: "").contains(query, ignoreCase = true))
-            }
+    if (isXtream) {
+        val counts = remember(vm.liveStreams) {
+            vm.liveStreams.groupingBy { it.categoryId ?: "" }.eachCount()
+        }
+        if (!searching && selected == null) {
             LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 110.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = BOTTOM_PAD.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filtered, key = { "lv${it.streamId}" }) { ch ->
-                    val key = "live:${ch.streamId}"
-                    ChannelRow(
-                        title = ch.name ?: "",
-                        imageUrl = ch.icon,
-                        subtitle = null,
-                        isFavorite = vm.isFavorite(key),
-                        onClick = { onPlay(vm.liveUrl(ch), ch.name ?: "") },
-                        onLongClick = {
-                            vm.toggleFavorite(
-                                Favorite(key, ch.name ?: "", ch.icon, "live",
-                                    ch.streamId ?: "", vm.liveUrl(ch))
-                            )
-                        }
+                items(vm.liveCategories, key = { it.categoryId ?: it.hashCode().toString() }) { c ->
+                    CategoryRow(
+                        name = c.categoryName ?: "Category",
+                        count = counts[c.categoryId] ?: 0,
+                        onClick = { selected = (c.categoryId ?: "") to (c.categoryName ?: "") }
                     )
                 }
             }
         } else {
-            M3uList(vm, query, kind = "live", onPlay = onPlay)
+            val filtered = remember(vm.liveStreams, selected, query) {
+                vm.liveStreams.filter { ch ->
+                    (searching || ch.categoryId == selected?.first) &&
+                        (!searching || (ch.name ?: "").contains(query, ignoreCase = true))
+                }
+            }
+            Column {
+                if (!searching) CategoryHeader(selected?.second ?: "", onBack = { selected = null })
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = BOTTOM_PAD.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filtered, key = { "lv${it.streamId}" }) { ch ->
+                        val key = "live:${ch.streamId}"
+                        ChannelRow(
+                            title = ch.name ?: "",
+                            imageUrl = ch.icon,
+                            subtitle = null,
+                            isFavorite = vm.isFavorite(key),
+                            onClick = { onPlay(vm.liveUrl(ch), ch.name ?: "") },
+                            onLongClick = {
+                                vm.toggleFavorite(
+                                    Favorite(key, ch.name ?: "", ch.icon, "live",
+                                        ch.streamId ?: "", vm.liveUrl(ch))
+                                )
+                            }
+                        )
+                    }
+                }
+            }
         }
+    } else {
+        M3uCategoryBrowser(
+            vm = vm,
+            kind = "live",
+            query = query,
+            itemContent = { ch ->
+                val key = "m3u:${ch.url}"
+                ChannelRow(
+                    title = ch.name,
+                    imageUrl = ch.logo,
+                    subtitle = ch.group,
+                    isFavorite = vm.isFavorite(key),
+                    onClick = { onPlay(ch.url, ch.name) },
+                    onLongClick = {
+                        vm.toggleFavorite(Favorite(key, ch.name, ch.logo, "m3u", ch.url, ch.url))
+                    }
+                )
+            }
+        )
     }
 }
 
-// ---------- Movies tab ----------
+// ============================================================
+// Movies tab — category-first with poster grid
+// ============================================================
 
 @Composable
 private fun MoviesTab(
@@ -393,162 +496,293 @@ private fun MoviesTab(
     isXtream: Boolean,
     onPlay: (String, String) -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val searching = query.isNotBlank()
 
-    Column {
-        if (isXtream) {
-            CategoryChips(
-                categories = vm.vodCategories.mapNotNull { c ->
-                    val id = c.categoryId ?: return@mapNotNull null
-                    id to (c.categoryName ?: id)
-                },
-                selectedId = selectedCategory,
-                onSelect = { selectedCategory = it }
-            )
-            val filtered = vm.vodStreams.filter { v ->
-                (selectedCategory == null || v.categoryId == selectedCategory) &&
-                    (query.isBlank() || (v.name ?: "").contains(query, ignoreCase = true))
-            }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 110.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+    if (isXtream) {
+        val counts = remember(vm.vodStreams) {
+            vm.vodStreams.groupingBy { it.categoryId ?: "" }.eachCount()
+        }
+        if (!searching && selected == null) {
+            LazyColumn(
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = BOTTOM_PAD.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filtered, key = { "v${it.streamId}" }) { vod ->
-                    val key = "movie:${vod.streamId}"
-                    PosterCard(
-                        title = vod.name ?: "",
-                        imageUrl = vod.icon,
-                        isFavorite = vm.isFavorite(key),
-                        rating = vod.rating?.takeIf { it.isNotBlank() && it != "0" },
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onPlay(vm.movieUrl(vod), vod.name ?: "") },
-                        onLongClick = {
-                            vm.toggleFavorite(
-                                Favorite(key, vod.name ?: "", vod.icon, "movie",
-                                    vod.streamId ?: "", vm.movieUrl(vod))
-                            )
-                        }
+                items(vm.vodCategories, key = { it.categoryId ?: it.hashCode().toString() }) { c ->
+                    CategoryRow(
+                        name = c.categoryName ?: "Category",
+                        count = counts[c.categoryId] ?: 0,
+                        onClick = { selected = (c.categoryId ?: "") to (c.categoryName ?: "") }
                     )
                 }
             }
         } else {
-            M3uList(vm, query, kind = "movie", onPlay = onPlay)
+            val filtered = remember(vm.vodStreams, selected, query) {
+                vm.vodStreams.filter { v ->
+                    (searching || v.categoryId == selected?.first) &&
+                        (!searching || (v.name ?: "").contains(query, ignoreCase = true))
+                }
+            }
+            Column {
+                if (!searching) CategoryHeader(selected?.second ?: "", onBack = { selected = null })
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = BOTTOM_PAD.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(filtered, key = { "v${it.streamId}" }) { vod ->
+                        val key = "movie:${vod.streamId}"
+                        PosterCard(
+                            title = vod.name ?: "",
+                            imageUrl = vod.icon,
+                            isFavorite = vm.isFavorite(key),
+                            rating = vod.rating?.takeIf { it.isNotBlank() && it != "0" },
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onPlay(vm.movieUrl(vod), vod.name ?: "") },
+                            onLongClick = {
+                                vm.toggleFavorite(
+                                    Favorite(key, vod.name ?: "", vod.icon, "movie",
+                                        vod.streamId ?: "", vm.movieUrl(vod))
+                                )
+                            }
+                        )
+                    }
+                }
+            }
         }
+    } else {
+        M3uCategoryBrowser(
+            vm = vm,
+            kind = "movie",
+            query = query,
+            asGrid = true,
+            gridItemContent = { ch ->
+                val key = "m3u:${ch.url}"
+                PosterCard(
+                    title = ch.name,
+                    imageUrl = ch.logo,
+                    isFavorite = vm.isFavorite(key),
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { onPlay(ch.url, ch.name) },
+                    onLongClick = {
+                        vm.toggleFavorite(Favorite(key, ch.name, ch.logo, "m3u", ch.url, ch.url))
+                    }
+                )
+            }
+        )
     }
 }
 
-// ---------- Series tab ----------
+// ============================================================
+// Series tab — category-first; M3U series are grouped
+// ============================================================
 
 @Composable
 private fun SeriesTab(
     vm: MainViewModel,
     query: String,
     isXtream: Boolean,
-    onPlay: (String, String) -> Unit,
-    onOpenSeries: (String, String, String) -> Unit
+    onOpenSeries: (String, String, String) -> Unit,
+    onOpenM3uSeries: (String) -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val searching = query.isNotBlank()
 
-    Column {
-        if (isXtream) {
-            CategoryChips(
-                categories = vm.seriesCategories.mapNotNull { c ->
-                    val id = c.categoryId ?: return@mapNotNull null
-                    id to (c.categoryName ?: id)
-                },
-                selectedId = selectedCategory,
-                onSelect = { selectedCategory = it }
-            )
-            val filtered = vm.series.filter { s ->
-                (selectedCategory == null || s.categoryId == selectedCategory) &&
-                    (query.isBlank() || (s.name ?: "").contains(query, ignoreCase = true))
-            }
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 110.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(filtered, key = { "s${it.seriesId}" }) { s ->
-                    val key = "series:${s.seriesId}"
-                    PosterCard(
-                        title = s.name ?: "",
-                        imageUrl = s.cover,
-                        isFavorite = vm.isFavorite(key),
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onOpenSeries(s.seriesId ?: "", s.name ?: "", s.cover ?: "") },
-                        onLongClick = {
-                            vm.toggleFavorite(
-                                Favorite(key, s.name ?: "", s.cover, "series", s.seriesId ?: "")
-                            )
-                        }
-                    )
-                }
-            }
-        } else {
-            M3uList(vm, query, kind = "series", onPlay = onPlay)
+    if (isXtream) {
+        val counts = remember(vm.series) {
+            vm.series.groupingBy { it.categoryId ?: "" }.eachCount()
         }
-    }
-}
-
-// ---------- Shared M3U list with group chips ----------
-
-@Composable
-private fun M3uList(
-    vm: MainViewModel,
-    query: String,
-    kind: String,
-    onPlay: (String, String) -> Unit
-) {
-    var selectedGroup by remember { mutableStateOf<String?>(null) }
-    val ofKind = vm.m3uChannels.filter { it.kind == kind }
-    val groups = ofKind.map { it.group }.distinct().sorted()
-
-    Column {
-        CategoryChips(
-            categories = groups.map { it to it },
-            selectedId = selectedGroup,
-            onSelect = { selectedGroup = it }
-        )
-        val filtered = ofKind.filter { ch ->
-            (selectedGroup == null || ch.group == selectedGroup) &&
-                (query.isBlank() || ch.name.contains(query, ignoreCase = true))
-        }
-        if (filtered.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    "Nothing here. This playlist may keep all content under Live.",
-                    color = OnSurfaceVariantEmber, fontFamily = Lexend, fontSize = 13.sp
-                )
-            }
-        } else {
+        if (!searching && selected == null) {
             LazyColumn(
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 110.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = BOTTOM_PAD.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(filtered, key = { it.url }) { ch ->
-                    val key = "m3u:${ch.url}"
-                    ChannelRow(
-                        title = ch.name,
-                        imageUrl = ch.logo,
-                        subtitle = ch.group,
-                        isFavorite = vm.isFavorite(key),
-                        onClick = { onPlay(ch.url, ch.name) },
-                        onLongClick = {
-                            vm.toggleFavorite(
-                                Favorite(key, ch.name, ch.logo, "m3u", ch.url, ch.url)
-                            )
-                        }
+                items(vm.seriesCategories, key = { it.categoryId ?: it.hashCode().toString() }) { c ->
+                    CategoryRow(
+                        name = c.categoryName ?: "Category",
+                        count = counts[c.categoryId] ?: 0,
+                        onClick = { selected = (c.categoryId ?: "") to (c.categoryName ?: "") }
                     )
+                }
+            }
+        } else {
+            val filtered = remember(vm.series, selected, query) {
+                vm.series.filter { s ->
+                    (searching || s.categoryId == selected?.first) &&
+                        (!searching || (s.name ?: "").contains(query, ignoreCase = true))
+                }
+            }
+            Column {
+                if (!searching) CategoryHeader(selected?.second ?: "", onBack = { selected = null })
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = BOTTOM_PAD.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(filtered, key = { "s${it.seriesId}" }) { s ->
+                        val key = "series:${s.seriesId}"
+                        PosterCard(
+                            title = s.name ?: "",
+                            imageUrl = s.cover,
+                            isFavorite = vm.isFavorite(key),
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onOpenSeries(s.seriesId ?: "", s.name ?: "", s.cover ?: "") },
+                            onLongClick = {
+                                vm.toggleFavorite(
+                                    Favorite(key, s.name ?: "", s.cover, "series", s.seriesId ?: "")
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    } else {
+        // Grouped M3U series: category list -> series grid -> episodes screen
+        val allSeries = remember(vm.m3uChannels) {
+            vm.m3uChannels.filter { it.kind == "series" }
+                .groupBy { SeriesGrouper.seriesKey(it.name) }
+                .map { (key, eps) ->
+                    M3uSeriesSummary(key, eps.first().group, eps.first().logo, eps.size)
+                }
+        }
+        val groups = remember(allSeries) {
+            allSeries.groupingBy { it.group }.eachCount().toList().sortedBy { it.first }
+        }
+        if (!searching && selected == null) {
+            if (groups.isEmpty()) {
+                EmptyHint("No series detected in this playlist.")
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = BOTTOM_PAD.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(groups, key = { it.first }) { (name, count) ->
+                        CategoryRow(name = name, count = count, onClick = { selected = name to name })
+                    }
+                }
+            }
+        } else {
+            val filtered = remember(allSeries, selected, query) {
+                allSeries.filter { s ->
+                    (searching || s.group == selected?.first) &&
+                        (!searching || s.name.contains(query, ignoreCase = true))
+                }
+            }
+            Column {
+                if (!searching) CategoryHeader(selected?.second ?: "", onBack = { selected = null })
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = BOTTOM_PAD.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(filtered, key = { it.name }) { s ->
+                        val key = "m3useries:${s.name}"
+                        PosterCard(
+                            title = s.name,
+                            imageUrl = s.logo,
+                            isFavorite = vm.isFavorite(key),
+                            subtitle = "${s.episodes} episodes",
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { onOpenM3uSeries(s.name) },
+                            onLongClick = {
+                                vm.toggleFavorite(
+                                    Favorite(key, s.name, s.logo, "m3useries", s.name)
+                                )
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-// ---------- Settings dialog ----------
+private data class M3uSeriesSummary(
+    val name: String,
+    val group: String,
+    val logo: String?,
+    val episodes: Int
+)
+
+// ============================================================
+// Shared M3U category browser (live + movies)
+// ============================================================
+
+@Composable
+private fun M3uCategoryBrowser(
+    vm: MainViewModel,
+    kind: String,
+    query: String,
+    asGrid: Boolean = false,
+    itemContent: (@Composable (M3uChannel) -> Unit)? = null,
+    gridItemContent: (@Composable (M3uChannel) -> Unit)? = null
+) {
+    var selected by remember { mutableStateOf<String?>(null) }
+    val searching = query.isNotBlank()
+
+    val ofKind = remember(vm.m3uChannels, kind) { vm.m3uChannels.filter { it.kind == kind } }
+    val groups = remember(ofKind) {
+        ofKind.groupingBy { it.group }.eachCount().toList().sortedBy { it.first }
+    }
+
+    if (ofKind.isEmpty()) {
+        EmptyHint("Nothing detected in this section for this playlist.")
+        return
+    }
+
+    if (!searching && selected == null) {
+        LazyColumn(
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = BOTTOM_PAD.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(groups, key = { it.first }) { (name, count) ->
+                CategoryRow(name = name, count = count, onClick = { selected = name })
+            }
+        }
+    } else {
+        val filtered = remember(ofKind, selected, query) {
+            ofKind.filter { ch ->
+                (searching || ch.group == selected) &&
+                    (!searching || ch.name.contains(query, ignoreCase = true))
+            }
+        }
+        Column {
+            if (!searching) CategoryHeader(selected ?: "", onBack = { selected = null })
+            if (asGrid && gridItemContent != null) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = BOTTOM_PAD.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(filtered, key = { it.url }) { ch -> gridItemContent(ch) }
+                }
+            } else if (itemContent != null) {
+                LazyColumn(
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = BOTTOM_PAD.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filtered, key = { it.url }) { ch -> itemContent(ch) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyHint(text: String) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Text(text, color = OnSurfaceVariantEmber, fontFamily = Lexend, fontSize = 13.sp)
+    }
+}
+
+// ============================================================
+// Settings
+// ============================================================
 
 @Composable
 private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: () -> Unit) {
@@ -560,7 +794,7 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Done", color = Gold, fontFamily = Lexend) }
         },
-        title = { Text("Settings (v1.5)", fontFamily = Lexend, fontWeight = FontWeight.SemiBold) },
+        title = { Text("Settings (v1.6)", fontFamily = Lexend, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(onClick = { vm.refresh(); onDismiss() }) {
@@ -569,6 +803,26 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
                         Text("  Refresh content", color = Gold, fontFamily = Lexend)
                     }
                 }
+
+                Text("Video player", fontFamily = Lexend, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    var external by remember { mutableStateOf(vm.useExternalPlayer) }
+                    FilterChip(
+                        selected = !external,
+                        onClick = { external = false; vm.useExternalPlayer = false },
+                        label = { Text("Built-in", fontFamily = Lexend) }
+                    )
+                    FilterChip(
+                        selected = external,
+                        onClick = { external = true; vm.useExternalPlayer = true },
+                        label = { Text("External (Samsung)", fontFamily = Lexend) }
+                    )
+                }
+                Text(
+                    "External hands playback to your phone's video player app.",
+                    fontFamily = Lexend, fontSize = 12.sp
+                )
+
                 Text("Live stream format", fontFamily = Lexend, fontSize = 13.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     var format by remember { mutableStateOf(vm.liveFormat) }
@@ -583,10 +837,7 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
                         label = { Text("MPEG-TS (.ts)", fontFamily = Lexend) }
                     )
                 }
-                Text(
-                    "If live channels won't play, switch the format — providers differ.",
-                    fontFamily = Lexend, fontSize = 12.sp
-                )
+
                 Text("Playlists", fontFamily = Lexend, fontSize = 13.sp)
                 vm.playlists.forEach { p ->
                     Row(

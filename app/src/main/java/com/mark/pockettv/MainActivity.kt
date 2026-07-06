@@ -1,5 +1,6 @@
 package com.mark.pockettv
 
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -13,7 +14,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +46,7 @@ import com.mark.pockettv.ui.Charcoal
 import com.mark.pockettv.ui.HomeScreen
 import com.mark.pockettv.ui.Lexend
 import com.mark.pockettv.ui.LoginScreen
+import com.mark.pockettv.ui.M3uSeriesScreen
 import com.mark.pockettv.ui.PlayerScreen
 import com.mark.pockettv.ui.PocketColors
 import com.mark.pockettv.ui.SeriesScreen
@@ -83,12 +87,14 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color(0xFF131313))
+                        .statusBarsPadding()
+                        .navigationBarsPadding()
                         .padding(24.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
                     Spacer(Modifier.height(40.dp))
                     BasicText(
-                        "PocketTV — diagnostic v1.5",
+                        "PocketTV — diagnostic v1.6",
                         style = TextStyle(color = Color.White, fontSize = 20.sp)
                     )
                     Spacer(Modifier.height(8.dp))
@@ -156,6 +162,22 @@ class MainActivity : ComponentActivity() {
 
                         val start = if (vm.active != null) "home" else "login"
 
+                        val play: (String, String) -> Unit = { url, title ->
+                            if (vm.useExternalPlayer) {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(Uri.parse(url), "video/*")
+                                    putExtra("title", title)
+                                }
+                                runCatching {
+                                    startActivity(Intent.createChooser(intent, "Play with"))
+                                }
+                            } else {
+                                navController.navigate(
+                                    "player?url=${Uri.encode(url)}&title=${Uri.encode(title)}"
+                                )
+                            }
+                        }
+
                         NavHost(navController = navController, startDestination = start) {
 
                             composable("login") {
@@ -169,15 +191,14 @@ class MainActivity : ComponentActivity() {
                             composable("home") {
                                 HomeScreen(
                                     vm = vm,
-                                    onPlay = { url, title ->
-                                        navController.navigate(
-                                            "player?url=${Uri.encode(url)}&title=${Uri.encode(title)}"
-                                        )
-                                    },
+                                    onPlay = play,
                                     onOpenSeries = { id, name, cover ->
                                         navController.navigate(
                                             "series?id=${Uri.encode(id)}&name=${Uri.encode(name)}&cover=${Uri.encode(cover)}"
                                         )
+                                    },
+                                    onOpenM3uSeries = { name ->
+                                        navController.navigate("m3useries?name=${Uri.encode(name)}")
                                     },
                                     onLogout = {
                                         navController.navigate("login")
@@ -198,11 +219,21 @@ class MainActivity : ComponentActivity() {
                                     seriesId = entry.arguments?.getString("id").orEmpty(),
                                     seriesName = entry.arguments?.getString("name").orEmpty(),
                                     cover = entry.arguments?.getString("cover").orEmpty(),
-                                    onPlay = { url, title ->
-                                        navController.navigate(
-                                            "player?url=${Uri.encode(url)}&title=${Uri.encode(title)}"
-                                        )
-                                    },
+                                    onPlay = play,
+                                    onBack = { navController.popBackStack() }
+                                )
+                            }
+
+                            composable(
+                                route = "m3useries?name={name}",
+                                arguments = listOf(
+                                    navArgument("name") { type = NavType.StringType; defaultValue = "" }
+                                )
+                            ) { entry ->
+                                M3uSeriesScreen(
+                                    vm = vm,
+                                    seriesName = entry.arguments?.getString("name").orEmpty(),
+                                    onPlay = play,
                                     onBack = { navController.popBackStack() }
                                 )
                             }

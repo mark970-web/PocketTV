@@ -54,6 +54,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             prefs.liveFormat = value
         }
 
+    var useExternalPlayer: Boolean
+        get() = prefs.useExternalPlayer
+        set(value) {
+            prefs.useExternalPlayer = value
+        }
+
     init {
         active?.let { loadContent(it) }
     }

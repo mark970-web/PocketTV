@@ -139,9 +139,19 @@ object M3uParser {
                     group = groupCache.getOrPut(g) { g }
                 }
                 line.isNotEmpty() && !line.startsWith("#") -> {
+                    val lowerUrl = line.lowercase()
+                    val lowerGroup = group.lowercase()
                     val kind = when {
-                        line.contains("/movie/", ignoreCase = true) -> "movie"
-                        line.contains("/series/", ignoreCase = true) -> "series"
+                        lowerUrl.contains("/series/") ||
+                            SeriesGrouper.hasEpisodePattern(name) ||
+                            lowerGroup.contains("series") ||
+                            lowerGroup.contains("show") -> "series"
+                        lowerUrl.contains("/movie/") ||
+                            lowerUrl.endsWith(".mp4") || lowerUrl.endsWith(".mkv") ||
+                            lowerUrl.endsWith(".avi") || lowerUrl.endsWith(".mov") ||
+                            lowerUrl.endsWith(".wmv") || lowerUrl.endsWith(".flv") ||
+                            lowerGroup.contains("movie") || lowerGroup.contains("vod") ||
+                            lowerGroup.contains("film") || lowerGroup.contains("cinema") -> "movie"
                         else -> "live"
                     }
                     channels.add(
@@ -164,4 +174,30 @@ object M3uParser {
 
     fun parse(content: String): List<M3uChannel> =
         parse(content.reader().buffered())
+}
+
+/** Groups loose M3U episode entries ("Show S01 E02") into logical series. */
+object SeriesGrouper {
+
+    private val episodeRegex = Regex("(?i)S(\\d{1,2})\\s*E(\\d{1,3})")
+
+    fun hasEpisodePattern(name: String): Boolean = episodeRegex.containsMatchIn(name)
+
+    /** "Breaking Point S02 E05 HD" -> "Breaking Point" */
+    fun seriesKey(name: String): String {
+        val cut = episodeRegex.find(name)?.range?.first ?: return name.trim()
+        return name.substring(0, cut).trim().trim('-', '_', '|', ':').trim().ifBlank { name.trim() }
+    }
+
+    /** Sortable order: season*1000 + episode. Unknown patterns sort last. */
+    fun episodeOrder(name: String): Int {
+        val m = episodeRegex.find(name) ?: return Int.MAX_VALUE
+        val season = m.groupValues[1].toIntOrNull() ?: 0
+        val episode = m.groupValues[2].toIntOrNull() ?: 0
+        return season * 1000 + episode
+    }
+
+    /** "Breaking Point S02 E05" -> "S02 E05" label. */
+    fun episodeLabel(name: String): String =
+        episodeRegex.find(name)?.value?.uppercase() ?: ""
 }

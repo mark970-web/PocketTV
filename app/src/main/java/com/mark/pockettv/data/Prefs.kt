@@ -55,6 +55,13 @@ class Prefs(context: Context) {
             sp.edit().putString("favorites", gson.toJson(value)).apply()
         }
 
+    /** When true, playback is handed to an external app (e.g. Samsung Video Player). */
+    var useExternalPlayer: Boolean
+        get() = sp.getBoolean("external_player", false)
+        set(value) {
+            sp.edit().putBoolean("external_player", value).apply()
+        }
+
     /** Live stream container: "m3u8" (HLS) or "ts" (MPEG-TS). Some providers only support one. */
     var liveFormat: String
         get() = sp.getString("live_format", "m3u8") ?: "m3u8"

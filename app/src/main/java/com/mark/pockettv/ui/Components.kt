@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -563,8 +566,9 @@ fun FloatingBottomNav(
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
+            .navigationBarsPadding()
             .padding(horizontal = 20.dp)
-            .padding(bottom = 20.dp)
+            .padding(bottom = 12.dp)
             .fillMaxWidth()
             .height(64.dp)
             .clip(RoundedCornerShape(50))
@@ -595,5 +599,83 @@ fun FloatingBottomNav(
                 )
             }
         }
+    }
+}
+
+/** Category row for category-first browsing (name + item count + chevron). */
+@Composable
+fun CategoryRow(
+    name: String,
+    count: Int,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(SurfaceContainer.copy(alpha = 0.75f))
+            .border(1.dp, EmberPrimary.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                name,
+                color = OnSurfaceEmber,
+                fontFamily = Lexend,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                "$count items",
+                color = OnSurfaceVariantEmber.copy(alpha = 0.8f),
+                fontFamily = Lexend,
+                fontSize = 12.sp
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = GoldDim.copy(alpha = 0.8f),
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+/** Header shown inside a category: back chevron + category title. */
+@Composable
+fun CategoryHeader(
+    name: String,
+    onBack: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 8.dp)
+    ) {
+        CircleGlassButton(onClick = onBack) {
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "Back",
+                tint = Gold,
+                modifier = Modifier
+                    .padding(8.dp)
+                    .graphicsLayer(scaleX = -1f)
+            )
+        }
+        Text(
+            name,
+            color = Gold,
+            fontFamily = Lexend,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 12.dp)
+        )
     }
 }
