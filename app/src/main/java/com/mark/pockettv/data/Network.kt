@@ -102,12 +102,25 @@ object ApiFactory {
             response.body?.string() ?: throw IllegalStateException("Empty response")
         }
     }
+
+    /** Streams a URL body without loading it all into memory (for huge playlists). */
+    suspend fun <T> withStream(url: String, block: (java.io.InputStream) -> T): T =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder().url(url.trim()).build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) throw IllegalStateException("HTTP ${response.code}")
+                val body = response.body ?: throw IllegalStateException("Empty response")
+                body.byteStream().use(block)
+            }
+        }
 }
 
 object M3uParser {
 
-    fun parse(content: String): List<M3uChannel> {
-        val channels = mutableListOf<M3uChannel>()
+    /** Memory-safe streaming parser: reads line by line, never the whole file. */
+    fun parse(reader: java.io.BufferedReader): List<M3uChannel> {
+        val channels = ArrayList<M3uChannel>(1024)
+        val groupCache = HashMap<String, String>() // share identical group strings
         var name = ""
         var logo: String? = null
         var group = "Uncategorized"
@@ -115,14 +128,15 @@ object M3uParser {
         val logoRegex = Regex("tvg-logo=\"(.*?)\"")
         val groupRegex = Regex("group-title=\"(.*?)\"")
 
-        content.lineSequence().forEach { raw ->
+        reader.forEachLine { raw ->
             val line = raw.trim()
             when {
                 line.startsWith("#EXTINF", ignoreCase = true) -> {
                     name = line.substringAfterLast(",").trim()
                     logo = logoRegex.find(line)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }
-                    group = groupRegex.find(line)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }
+                    val g = groupRegex.find(line)?.groupValues?.getOrNull(1)?.takeIf { it.isNotBlank() }
                         ?: "Uncategorized"
+                    group = groupCache.getOrPut(g) { g }
                 }
                 line.isNotEmpty() && !line.startsWith("#") -> {
                     val kind = when {
@@ -147,4 +161,7 @@ object M3uParser {
         }
         return channels
     }
+
+    fun parse(content: String): List<M3uChannel> =
+        parse(content.reader().buffered())
 }

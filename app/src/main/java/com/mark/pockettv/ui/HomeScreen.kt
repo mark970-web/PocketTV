@@ -560,7 +560,7 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Done", color = Gold, fontFamily = Lexend) }
         },
-        title = { Text("Settings (v1.4)", fontFamily = Lexend, fontWeight = FontWeight.SemiBold) },
+        title = { Text("Settings (v1.5)", fontFamily = Lexend, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(onClick = { vm.refresh(); onDismiss() }) {

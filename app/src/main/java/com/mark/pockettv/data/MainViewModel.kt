@@ -101,8 +101,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             loading = true
             error = null
             try {
-                val text = ApiFactory.fetchText(url)
-                val parsed = M3uParser.parse(text)
+                val parsed = ApiFactory.withStream(url) { ins ->
+                    M3uParser.parse(ins.bufferedReader())
+                }
                 if (parsed.isEmpty()) throw IllegalStateException("No channels found in playlist")
 
                 val playlist = Playlist(
@@ -129,16 +130,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             error = null
             try {
                 val context = getApplication<Application>()
-                val text = withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)
-                        ?.bufferedReader()?.use { it.readText() }
-                } ?: throw IllegalStateException("Could not read the selected file")
-                val parsed = M3uParser.parse(text)
-                if (parsed.isEmpty()) throw IllegalStateException("No channels found in file")
-
                 val id = UUID.randomUUID().toString()
                 val file = File(context.filesDir, "playlist_$id.m3u")
-                withContext(Dispatchers.IO) { file.writeText(text) }
+
+                // Stream-copy the picked file into app storage (constant memory)
+                withContext(Dispatchers.IO) {
+                    val input = context.contentResolver.openInputStream(uri)
+                        ?: throw IllegalStateException("Could not read the selected file")
+                    input.use { ins ->
+                        file.outputStream().use { out -> ins.copyTo(out) }
+                    }
+                }
+
+                // Stream-parse from the saved copy (line by line, never all at once)
+                val parsed = withContext(Dispatchers.IO) {
+                    file.bufferedReader().use { M3uParser.parse(it) }
+                }
+                if (parsed.isEmpty()) {
+                    runCatching { file.delete() }
+                    throw IllegalStateException("No channels found in file")
+                }
 
                 val playlist = Playlist(
                     id = id,
@@ -214,12 +225,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     m3uChannels = emptyList()
                 } else {
                     val path = playlist.filePath
-                    val text = if (!path.isNullOrBlank()) {
-                        withContext(Dispatchers.IO) { File(path).readText() }
-                    } else {
-                        ApiFactory.fetchText(playlist.m3uUrl)
+                    m3uChannels = withContext(Dispatchers.IO) {
+                        if (!path.isNullOrBlank()) {
+                            File(path).bufferedReader().use { M3uParser.parse(it) }
+                        } else {
+                            ApiFactory.withStream(playlist.m3uUrl) { ins ->
+                                M3uParser.parse(ins.bufferedReader())
+                            }
+                        }
                     }
-                    m3uChannels = M3uParser.parse(text)
                     liveCategories = emptyList(); liveStreams = emptyList()
                     vodCategories = emptyList(); vodStreams = emptyList()
                     seriesCategories = emptyList(); series = emptyList()

@@ -8,6 +8,7 @@
         android:label="PocketTV"
         android:icon="@android:drawable/sym_def_app_icon"
         android:usesCleartextTraffic="true"
+        android:largeHeap="true"
         android:theme="@style/Theme.PocketTV"
         android:supportsRtl="true">
 
