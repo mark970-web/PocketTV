@@ -41,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.mark.pockettv.data.Favorite
 import com.mark.pockettv.data.MainViewModel
@@ -88,7 +87,7 @@ fun HomeScreen(
                     fontFamily = Lexend,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
-                    letterSpacing = (-0.03).em,
+                    letterSpacing = (-0.6).sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     modifier = Modifier.weight(1f)
                 )
@@ -561,7 +560,7 @@ private fun SettingsDialog(vm: MainViewModel, onDismiss: () -> Unit, onLogout: (
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Done", color = Gold, fontFamily = Lexend) }
         },
-        title = { Text("Settings (v1.3)", fontFamily = Lexend, fontWeight = FontWeight.SemiBold) },
+        title = { Text("Settings (v1.4)", fontFamily = Lexend, fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(onClick = { vm.refresh(); onDismiss() }) {

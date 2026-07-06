@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
                 ) {
                     Spacer(Modifier.height(40.dp))
                     BasicText(
-                        "PocketTV — diagnostic v1.3",
+                        "PocketTV — diagnostic v1.4",
                         style = TextStyle(color = Color.White, fontSize = 20.sp)
                     )
                     Spacer(Modifier.height(8.dp))
